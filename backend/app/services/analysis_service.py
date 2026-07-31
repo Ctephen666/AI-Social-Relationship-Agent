@@ -1,7 +1,4 @@
-from datetime import datetime
-
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+﻿from sqlalchemy.orm import Session
 
 from app.agent.graph import RelationshipAgent
 from app.agent.state import AgentState
@@ -10,11 +7,18 @@ from app.memory.service import MemoryService
 
 
 class AnalysisService:
+    """Application service that persists an Agent run without granting execution permissions."""
+
     def __init__(self) -> None:
-        self.agent = RelationshipAgent()
         self.memory = MemoryService()
 
-    async def analyze_user(self, db: Session, user: User, interaction_days: int, last_message: str = "") -> MessageSuggestion | None:
+    async def analyze_user(
+        self,
+        db: Session,
+        user: User,
+        interaction_days: int,
+        last_message: str = "",
+    ) -> MessageSuggestion | None:
         state: AgentState = {
             "user_id": user.id,
             "nickname": user.nickname,
@@ -23,9 +27,8 @@ class AnalysisService:
             "tags": user.tags or [],
             "interaction_days": interaction_days,
             "last_message": last_message,
-            "memories": self.memory.recent_context(db, user.id),
         }
-        result = await self.agent.assess(state)
+        result = await RelationshipAgent(db=db, memory_service=self.memory).assess(state)
         assessment = RelationshipAssessment(
             user_id=user.id,
             need_reminder=bool(result["need_reminder"]),
@@ -51,4 +54,3 @@ class AnalysisService:
         db.commit()
         db.refresh(suggestion)
         return suggestion
-

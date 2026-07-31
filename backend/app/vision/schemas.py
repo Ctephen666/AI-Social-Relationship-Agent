@@ -1,4 +1,4 @@
-from datetime import datetime
+﻿from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -18,10 +18,16 @@ class ContactObservation(BaseModel):
     confidence: float = 0.0
 
 
+class StructuredChatObject(ContactObservation):
+    """Vision Parser output. It can be persisted or passed to the Agent unchanged."""
+
+    bounds: list[int] = Field(default_factory=list)
+    raw_text: list[str] = Field(default_factory=list)
+
+
 class ScanObservation(BaseModel):
     source: str = "screen"
     captured_at: datetime
     image_path: str | None = None
     blocks: list[OCRBlock] = Field(default_factory=list)
-    contacts: list[ContactObservation] = Field(default_factory=list)
-
+    contacts: list[StructuredChatObject] = Field(default_factory=list)

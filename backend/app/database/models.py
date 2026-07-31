@@ -1,9 +1,9 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
 
-from sqlalchemy import DateTime, Enum as SqlEnum, ForeignKey, Integer, JSON, String, Text, func
+from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -24,6 +24,7 @@ class SuggestionStatus(str, Enum):
 
 class User(Base):
     __tablename__ = "users"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nickname: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     relationship: Mapped[str] = mapped_column(String(100), default="朋友")
@@ -31,12 +32,17 @@ class User(Base):
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
     interactions: Mapped[list[InteractionRecord]] = relationship(back_populates="user", cascade="all, delete-orphan")
     memories: Mapped[list[Memory]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    profile_memory: Mapped[ProfileMemory | None] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
+    episodic_memories: Mapped[list[EpisodicMemory]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    semantic_memories: Mapped[list[SemanticMemory]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class InteractionRecord(Base):
     __tablename__ = "interaction_records"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     time: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now)
@@ -47,7 +53,10 @@ class InteractionRecord(Base):
 
 
 class Memory(Base):
+    """Legacy memory table kept for existing API compatibility."""
+
     __tablename__ = "memories"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     facts: Mapped[str] = mapped_column(Text)
@@ -56,8 +65,56 @@ class Memory(Base):
     user: Mapped[User] = relationship(back_populates="memories")
 
 
+class ProfileMemory(Base):
+    """Stable person-level context: relationship, style and boundaries."""
+
+    __tablename__ = "profile_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), unique=True, index=True)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    communication_style: Mapped[str] = mapped_column(String(100), default="自然、轻松")
+    boundaries: Mapped[str] = mapped_column(Text, default="")
+    preferences: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    user: Mapped[User] = relationship(back_populates="profile_memory")
+
+
+class EpisodicMemory(Base):
+    """Time-bound events and conversation episodes."""
+
+    __tablename__ = "episodic_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, index=True)
+    summary: Mapped[str] = mapped_column(Text)
+    topic: Mapped[str] = mapped_column(String(120), default="")
+    sentiment: Mapped[str] = mapped_column(String(30), default="neutral")
+    importance: Mapped[float] = mapped_column(Float, default=0.5)
+    source: Mapped[str] = mapped_column(String(40), default="manual")
+    user: Mapped[User] = relationship(back_populates="episodic_memories")
+
+
+class SemanticMemory(Base):
+    """Durable facts inferred or confirmed from interactions."""
+
+    __tablename__ = "semantic_memories"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    fact: Mapped[str] = mapped_column(Text)
+    category: Mapped[str] = mapped_column(String(60), default="general")
+    confidence: Mapped[float] = mapped_column(Float, default=0.8)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    source: Mapped[str] = mapped_column(String(40), default="manual")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    user: Mapped[User] = relationship(back_populates="semantic_memories")
+
+
 class RelationshipAssessment(Base):
     __tablename__ = "relationship_assessments"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     need_reminder: Mapped[bool]
@@ -70,6 +127,7 @@ class RelationshipAssessment(Base):
 
 class MessageSuggestion(Base):
     __tablename__ = "message_suggestions"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     assessment_id: Mapped[int | None] = mapped_column(ForeignKey("relationship_assessments.id"), nullable=True)
@@ -83,6 +141,7 @@ class MessageSuggestion(Base):
 
 class ScanTask(Base):
     __tablename__ = "scan_tasks"
+
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     status: Mapped[str] = mapped_column(String(30), default="queued")
     source: Mapped[str] = mapped_column(String(40), default="scheduler")
@@ -95,7 +154,7 @@ class ScanTask(Base):
 
 class AppSetting(Base):
     __tablename__ = "settings"
+
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-
