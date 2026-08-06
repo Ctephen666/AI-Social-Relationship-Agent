@@ -1,0 +1,4 @@
+# Optional compatibility fallback. The default low-latency build does not need it.
+paddleocr==3.7.0
+paddlex[ocr-core]==3.7.2
+paddlepaddle==3.3.1

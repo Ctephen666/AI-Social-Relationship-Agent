@@ -1,153 +1,238 @@
-﻿# AI 社交关系维护助手 Agent
+# 个人工作 Agent
 
-> 本地优先、人工确认的个人社交关系维护工作台。
+运行在 Windows 本机的个人工作助手。桌面入口是一只卡通便便悬浮助手，支持语音唤醒、手动对话、文字命令、权限确认和可插拔 Skill。
 
-AI 社交关系维护助手通过屏幕视觉识别聊天列表，结合好友档案、互动记录与关系记忆，识别值得关注的关系，并生成可编辑的话术建议。第一阶段严格采用 **“识别 → 分析 → 生成建议 → 用户确认”** 工作流，系统不会自动输入或发送任何消息。
+当前内置两个抖音 Skill：只读火花扫描，以及受控的批量续火花发送。明确说出“续火花”即视为本次任务授权，Agent 会打开右上角消息面板，单次滚动聊天列表并边识别边逐人发送；开发测试不会向真实好友发送消息。
 
-## 核心能力
+## 主要能力
 
-- **本地视觉识别**：使用 MSS 截图、OpenCV 预处理和 PaddleOCR 提取聊天列表文本。
-- **关系维护 Agent**：基于 LangGraph 编排关系评估、优先级判断、沟通策略和话术生成。
-- **关系记忆**：保存好友档案、互动记录、长期事实与偏好，持续补充决策上下文。
-- **安全话术建议**：支持 OpenAI 兼容 API；未配置模型时提供本地安全兜底建议。
-- **本地管理后台**：提供关系概览、好友管理、AI 建议中心、扫描记录和设置页。
-- **定时扫描**：通过 APScheduler 支持每日定时截图、识别和关系分析。
-- **未来自动化预留**：定义 Computer Use 接口，但当前版本会拒绝所有键鼠、输入和发送操作。
+- 蓝白卡通悬浮 UI：动态状态徽标、粒子反馈和可滚动完整回复框；空闲时不持续重绘，避免透明窗口残影。
+- 左击：进入一次语音命令窗口。
+- 右击：打开快捷选择栏，可选择手动对话、进入设置、开始聆听或退出。
+- 默认唤醒词：`史蒂芬`，可在设置中修改。
+- SenseVoice Small INT8 + Silero VAD 本地中文识别；Windows SAPI 作为自动降级方案。
+- Agent 回复仅用文字展示，不加载语音合成模型，启动与响应更轻量。
+- Skill Registry：工作能力以独立插件注册。
+- Permission Policy：本地操作、外部写入和禁止能力分级。
+- Human-in-the-loop：火花扫描等桌面操作必须确认。
+- Qwen3.7 Plus：通过阿里云百炼 OpenAI 兼容接口进行普通对话。
+- RapidOCR/ONNX Runtime、UIA 和 OpenCV 低延迟火花扫描。
+- 发送保护：抖音前台校验、聊天行/编辑区/发送箭头白名单区域、联系人去重、审计和 `Ctrl+Shift+Q` 紧急停止。
 
-## 安全模式
+## 使用方法
 
-```text
-截图 → OCR 识别 → 聊天列表解析 → Agent 分析 → 候选话术 → 用户复制/确认
-```
-
-- 不提供消息发送 API。
-- 不执行鼠标点击、键盘输入或浏览器自动化。
-- 截图、互动数据和 SQLite 数据库默认保存在本机。
-- 模型密钥仅通过本地 `.env` 配置，不应提交至 Git。
-
-## 技术栈
-
-| 领域 | 技术 |
-| --- | --- |
-| 后端 | Python 3.11+、FastAPI、Pydantic Settings |
-| Agent | LangGraph、LangChain Core |
-| 视觉 | MSS、OpenCV、PaddleOCR |
-| 数据库 | SQLite、SQLAlchemy 2.0（可迁移 PostgreSQL） |
-| 调度 | APScheduler |
-| 前端 | Vue 3、Vite、TypeScript、Element Plus |
-| 模型接入 | OpenAI Chat Completions 兼容接口 |
-
-## 项目结构
+运行：
 
 ```text
-AI-Social-Relationship-Agent/
-├── backend/
-│   ├── app/
-│   │   ├── api/                 # REST API：仪表盘、好友、扫描、建议、设置
-│   │   ├── agent/               # LangGraph 状态、评估器、规划器与工作流
-│   │   ├── automation/          # 未来 Computer Use 接口（当前强制拒绝执行）
-│   │   ├── core/                # 配置、日志等基础设施
-│   │   ├── database/            # SQLAlchemy 会话、模型与初始化
-│   │   ├── llm/                 # LLM Provider 与话术生成器
-│   │   ├── memory/              # 关系记忆服务
-│   │   ├── scheduler/           # APScheduler 定时任务
-│   │   ├── services/            # 扫描、关系分析等跨域业务服务
-│   │   ├── vision/              # 截图、图像预处理、OCR、聊天列表解析
-│   │   ├── main.py              # FastAPI 应用入口
-│   │   └── schemas.py           # API 请求与响应模型
-│   ├── tests/                   # Agent 单元测试
-│   ├── .env.example             # 本地环境变量样例
-│   └── requirements.txt         # Python 依赖
-├── frontend/
-│   ├── src/
-│   │   ├── api/                 # 后端 API 客户端
-│   │   ├── router/              # Vue 路由
-│   │   ├── styles/              # AI 工作台视觉样式
-│   │   ├── types/               # TypeScript 领域类型
-│   │   ├── views/               # 概览、好友、建议、设置页面
-│   │   ├── App.vue              # 工作台整体布局
-│   │   └── main.ts              # 前端入口
-│   ├── package.json
-│   └── vite.config.ts
-├── data/
-│   └── screenshots/             # 可选的本地截图存储目录
-├── docs/
-│   └── architecture.md          # 架构与安全流说明
-├── .gitignore
-└── README.md
+start_desktop_agent.bat
 ```
 
-## 快速开始
+或者直接启动：
 
-### 1. 启动后端
-
-要求：Python 3.11+。
-
-```powershell
-cd backend
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-Copy-Item .env.example .env
-uvicorn app.main:app --reload --port 8000
+```text
+backend/dist/StephenAgent/StephenAgent.exe
 ```
 
-后端健康检查：`http://localhost:8000/health`
+语音示例：
 
-### 2. 启动前端
-
-要求：Node.js 20+。
-
-```powershell
-cd frontend
-npm install
-npm run dev
+```text
+用户：“史蒂芬”
+状态：正在聆听
+用户：“帮我抖音续个火花”
 ```
 
-打开 `http://localhost:5173`。
+手动对话：右击便便助手，选择“手动对话”，状态栏旁会弹出迷你输入窗口。按 `Enter` 发送，使用 `Shift+Enter` 换行。手动输入和语音识别结果会进入同一套 Agent、LLM 与 Skill 路由。
 
-## 配置 LLM（可选）
+识别到续火花指令后会直接开始，不再询问确认。
 
-编辑 `backend/.env`：
+```text
+“史蒂芬”
+“扫描一下火花”
+
+Agent：“我将打开抖音并滚动聊天列表……确认开始吗？”
+“确认”
+```
+
+也可以一次说完：
+
+```text
+“史蒂芬，扫描火花”
+```
+
+续火花发送流程：
+
+```text
+用户：“史蒂芬，帮我抖音续个火花”
+Agent：打开抖音右上角“消息”面板
+Agent：单次滚动聊天列表，逐行点击对话、编辑“发送消息”栏并点击右侧箭头
+Agent：“续火花发送已完成……”
+```
+
+说出明确指令后会产生真实外部发送。执行中按 `Ctrl+Shift+Q` 可停止，已经发送的消息无法撤回。
+
+右击便便助手选择“进入设置”后，会打开左侧导航、右侧内容的设置中心：
+
+- 总览：运行状态、快速命令和交互提示
+- 语音与唤醒：SenseVoice/Silero VAD 状态、唤醒词和识别后端
+- 模型配置：Base URL、模型名称、API Key、请求超时和连接测试
+- 续火花：扫描模式、OCR 后端和滚动稳定时间
+- 续火花发送：消息模板、人数、间隔和固定安全策略
+
+设置保存在本地：
+
+```text
+data/agent_settings.json
+data/skill_settings.json
+```
+
+## 新 Skill 的设置页
+
+每个已注册 Skill 会自动出现在设置中心左侧。新 Skill 可在 `SkillManifest.settings_schema` 中声明字段，桌面端会自动生成文本、密码、数字、布尔或下拉控件，并保存到 `data/skill_settings.json`：
+
+```python
+SkillManifest(
+    id="calendar",
+    name="日程管理",
+    description="管理个人日程",
+    settings_schema=[
+        SkillSettingField(key="calendar_id", label="日历 ID", kind="text"),
+        SkillSettingField(key="reminder", label="默认提醒", kind="boolean", default=True),
+    ],
+)
+```
+
+## 普通对话
+
+项目默认接入阿里云百炼 `qwen3.7-plus`。在 `backend/.env` 填入百炼 API Key：
 
 ```dotenv
-LLM_BASE_URL=https://your-provider.example/v1
-LLM_API_KEY=your_api_key
-LLM_MODEL=your_model_name
+LLM_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+LLM_API_KEY=sk-your-dashscope-key
+LLM_MODEL=qwen3.7-plus
+LLM_TIMEOUT_SECONDS=60
 ```
 
-三个值均已配置时，系统才会请求外部模型服务；否则会使用本地规则与兜底话术。OCR 仍在本机运行。
+未配置模型时，语音唤醒、手动输入、本地命令和火花 Skill 仍可使用；普通聊天会提示模型尚未配置。
 
-## 使用流程
+## 架构
 
-1. 在“好友管理”中建立好友档案，并设置关系类型、优先级和标签。
-2. 在“设置”中限定 OCR 截图区域，避免识别无关屏幕内容。
-3. 在“关系概览”手动启动扫描，或使用每日定时扫描。
-4. 在“AI 建议中心”查看推荐原因和候选话术。
-5. 编辑或复制话术后，由用户自行在聊天工具中确认并发送。
+```text
+卡通便便桌面 UI
+  ├── Voice Gateway
+  │     ├── SenseVoice Small INT8 + Silero VAD
+  │     ├── 唤醒词门控
+  │     └── Windows SAPI 识别降级
+  ├── Manual Chat
+  │     └── 文字输入、历史回复与 Skill 命令复用
+  └── Personal Agent Core
+        ├── Intent Router（快速规则路由）
+        ├── Permission Policy
+        ├── Human Confirmation
+        ├── LLM Conversation
+        └── Skill Registry
+              └── spark_scan
+                    ├── UIA 快速通道
+                    ├── RapidOCR 兜底
+                    └── OpenCV 火花检测
+              └── spark_renew
+                    ├── 自动打开右上角消息面板
+                    ├── 单次遍历、边识别边发送
+                    ├── 固定编辑区输入与右侧箭头发送
+                    └── 限速发送与审计
+```
 
-## 开发与验证
+项目结构：
+
+```text
+backend/app/
+├── personal_agent/
+│   ├── core.py
+│   ├── policy.py
+│   ├── registry.py
+│   ├── router.py
+│   ├── schemas.py
+│   ├── settings_store.py
+│   └── skill.py
+├── skills/
+│   ├── spark_scan/
+│   └── spark_renew/
+├── voice/
+│   ├── neural_gateway.py
+│   ├── model_manager.py
+│   └── sapi_gateway.py
+├── desktop_agent/
+├── vision/
+├── services/
+├── memory/
+├── llm/
+└── desktop_app.py
+```
+
+## Skill 权限模型
+
+| 等级 | 示例 | 行为 |
+|---|---|---|
+| `READ_ONLY` | 查询最近报告 | 可直接执行 |
+| `LOCAL_ACTION` | 打开抖音、截图、滚动 | 默认要求确认 |
+| `EXTERNAL_WRITE` | 抖音消息发送 | 仅允许明确匹配的专用 Skill；续火花口令会直接执行 |
+| `PROHIBITED` | 当前禁止的能力 | 拒绝执行 |
+
+发送接口仅允许操作抖音聊天行、底部消息编辑区和右侧发送箭头，不提供通用桌面点击能力，也不使用或覆盖系统剪贴板。直接续火花遍历不检查火花图标，每次尝试记录在 `outbound_message_audits` 表中。
+
+## 源码运行
+
+要求：Windows 10/11、Python 3.11+。
 
 ```powershell
-# 后端语法与单元测试
-cd backend
-python -m compileall -q app tests
-pytest
-
-# 前端生产构建
-cd ../frontend
-npm run build
+cd D:\AI-Social-Relationship-Agent\backend
+python -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+.\.venv\Scripts\python.exe -B scripts\install_voice_models.py
+.\.venv\Scripts\python.exe -m app.desktop_app
 ```
 
-> PaddleOCR 首次运行时可能下载其本地模型文件。请在网络可用时完成依赖安装；截图不会因 OCR 而被上传。
+语音模型默认安装到 `data/voice_models`。安装器从 sherpa-onnx 官方 GitHub Release 下载：
 
-## 发展路线
+- `SenseVoice Small INT8`：中文/英文/粤语/日语/韩语识别
+- `Silero VAD`：本地语音端点检测
 
-- 支持更多聊天平台的专用界面解析策略。
-- 支持 PostgreSQL、数据库迁移与多设备数据同步。
-- 支持浏览器 DOM 解析，作为 OCR 的补充信号。
-- 在显式授权、可回放审计与逐步确认基础上，扩展 Computer Use 能力。
+模型缺失或神经引擎初始化失败时自动使用 Windows SAPI 识别。手动对话入口不受影响。
 
-## License
+## 构建 EXE
 
-当前仓库尚未声明许可证；请在公开分发或商业化前补充 `LICENSE` 文件。
+```powershell
+cd D:\AI-Social-Relationship-Agent\backend
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
+.\build_exe.ps1
+```
+
+产物：
+
+```text
+backend/dist/StephenAgent/StephenAgent.exe
+```
+
+必须保留整个 `StephenAgent` 文件夹。构建产物只附带 SenseVoice 与 Silero VAD，不再包含 Kokoro。构建脚本会覆盖 PyInstaller 自带的旧 VC++ Runtime，避免 ONNX Runtime DLL 初始化失败。
+
+## 测试
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m compileall -q app tests
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+OCR 冒烟测试：
+
+```powershell
+.\dist\StephenAgent\StephenAgent.exe --smoke-ocr "D:\path\to\screenshot.png"
+```
+
+## 隐私与安全
+
+- SenseVoice 与 Silero VAD 均在本机推理，麦克风音频不会上传。
+- 截图、数据库、设置和日志保存在本地数据目录。
+- 普通对话只有配置百炼 API Key 后才会请求 `qwen3.7-plus`。
+- 桌面 Skill 执行前经过中央权限策略。
+- 明确续火花指令会直接开始发送；同一次遍历按联系人去重，不会重复发送。
+- 失去抖音前台焦点或 Windows 无法完整输入消息时立即停止整个任务。

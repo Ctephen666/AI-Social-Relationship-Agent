@@ -7,4 +7,11 @@ dist/
 data/*.db
 data/screenshots/*
 !data/screenshots/.gitkeep
-
+data/paddlex/
+data/voice_models/
+data/logs/
+backend/build/
+backend/dist/
+backend/__pycache__/
+backend/.pytest_cache/
+backend/.test-tmp-*/

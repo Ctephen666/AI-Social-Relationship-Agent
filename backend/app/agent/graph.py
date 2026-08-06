@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from sqlalchemy.orm import Session
 from langgraph.graph import END, START, StateGraph
@@ -40,7 +40,7 @@ class RelationshipAgent:
         graph.add_edge("suggestion_generator", END)
         self.graph = graph.compile()
 
-    def _retrieve_memory(self, state: AgentState) -> AgentState:
+    async def _retrieve_memory(self, state: AgentState) -> AgentState:
         bundle = self.memory_service.retrieve(self.db, state["user_id"])
         return {
             "profile_memory": bundle.profile,

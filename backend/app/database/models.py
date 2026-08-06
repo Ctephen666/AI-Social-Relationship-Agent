@@ -1,10 +1,10 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
 
 from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, JSON, String, Text, func
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship as orm_relationship
 
 from app.database.base import Base
 
@@ -33,11 +33,11 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-    interactions: Mapped[list[InteractionRecord]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    memories: Mapped[list[Memory]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    profile_memory: Mapped[ProfileMemory | None] = relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
-    episodic_memories: Mapped[list[EpisodicMemory]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    semantic_memories: Mapped[list[SemanticMemory]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    interactions: Mapped[list[InteractionRecord]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
+    memories: Mapped[list[Memory]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
+    profile_memory: Mapped[ProfileMemory | None] = orm_relationship(back_populates="user", cascade="all, delete-orphan", uselist=False)
+    episodic_memories: Mapped[list[EpisodicMemory]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
+    semantic_memories: Mapped[list[SemanticMemory]] = orm_relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class InteractionRecord(Base):
@@ -49,7 +49,7 @@ class InteractionRecord(Base):
     content: Mapped[str] = mapped_column(Text, default="")
     status: Mapped[str] = mapped_column(String(40), default="observed")
     source: Mapped[str] = mapped_column(String(40), default="manual")
-    user: Mapped[User] = relationship(back_populates="interactions")
+    user: Mapped[User] = orm_relationship(back_populates="interactions")
 
 
 class Memory(Base):
@@ -62,7 +62,7 @@ class Memory(Base):
     facts: Mapped[str] = mapped_column(Text)
     preferences: Mapped[str] = mapped_column(Text, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    user: Mapped[User] = relationship(back_populates="memories")
+    user: Mapped[User] = orm_relationship(back_populates="memories")
 
 
 class ProfileMemory(Base):
@@ -77,7 +77,7 @@ class ProfileMemory(Base):
     boundaries: Mapped[str] = mapped_column(Text, default="")
     preferences: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    user: Mapped[User] = relationship(back_populates="profile_memory")
+    user: Mapped[User] = orm_relationship(back_populates="profile_memory")
 
 
 class EpisodicMemory(Base):
@@ -93,7 +93,7 @@ class EpisodicMemory(Base):
     sentiment: Mapped[str] = mapped_column(String(30), default="neutral")
     importance: Mapped[float] = mapped_column(Float, default=0.5)
     source: Mapped[str] = mapped_column(String(40), default="manual")
-    user: Mapped[User] = relationship(back_populates="episodic_memories")
+    user: Mapped[User] = orm_relationship(back_populates="episodic_memories")
 
 
 class SemanticMemory(Base):
@@ -109,7 +109,7 @@ class SemanticMemory(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     source: Mapped[str] = mapped_column(String(40), default="manual")
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
-    user: Mapped[User] = relationship(back_populates="semantic_memories")
+    user: Mapped[User] = orm_relationship(back_populates="semantic_memories")
 
 
 class RelationshipAssessment(Base):
@@ -158,3 +158,41 @@ class AppSetting(Base):
     key: Mapped[str] = mapped_column(String(100), primary_key=True)
     value: Mapped[dict] = mapped_column(JSON, default=dict)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class SparkStatus(str, Enum):
+    active = "active"
+    gray = "gray"
+    none = "none"
+
+
+class DesktopSparkScan(Base):
+    """One visual spark classification result for a chat row in a local desktop scan."""
+
+    __tablename__ = "desktop_spark_scans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    nickname: Mapped[str] = mapped_column(String(100), index=True)
+    platform: Mapped[str] = mapped_column(String(40), default="douyin")
+    spark_status: Mapped[SparkStatus] = mapped_column(SqlEnum(SparkStatus), default=SparkStatus.none)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    screenshot_path: Mapped[str] = mapped_column(String(500))
+    chat_list_bounds: Mapped[list[int]] = mapped_column(JSON, default=list)
+    spark_bounds: Mapped[list[int]] = mapped_column(JSON, default=list)
+    ocr_payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OutboundMessageAudit(Base):
+    """Immutable audit row for each attempted external chat write."""
+
+    __tablename__ = "outbound_message_audits"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plan_id: Mapped[str] = mapped_column(String(64), index=True)
+    platform: Mapped[str] = mapped_column(String(40), default="douyin")
+    nickname: Mapped[str] = mapped_column(String(100), index=True)
+    content: Mapped[str] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(String(30), index=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
